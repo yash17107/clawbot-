@@ -31,6 +31,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 conversation_history: dict[str, list] = {}
 
+# ── Active listening channels (bot responds to all messages, no mention needed)
+active_channels: set[int] = set()
+
 # ── Music queue per guild ──────────────────────────────────────────────────────
 music_queues: dict[int, list] = {}
 
@@ -82,7 +85,7 @@ async def get_audio_source(query: str):
 @bot.event
 async def on_ready():
     print(f"Clawbot online as {bot.user} (ID: {bot.user.id})")
-    print("Commands: !ask !imagine !play !stop !pause !resume !skip !queue !reset !ping")
+    print("Commands: !ask !imagine !listen !unlisten !play !stop !pause !resume !skip !queue !reset !ping")
     print("------")
 
 
@@ -91,17 +94,18 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    is_dm        = isinstance(message.channel, discord.DMChannel)
-    is_mentioned = bot.user in message.mentions
-    is_command   = message.content.startswith(bot.command_prefix)
+    is_dm          = isinstance(message.channel, discord.DMChannel)
+    is_mentioned   = bot.user in message.mentions
+    is_command     = message.content.startswith(bot.command_prefix)
+    is_active_ch   = message.channel.id in active_channels
 
     # always process commands first (works in both DMs and servers)
     if is_command:
         await bot.process_commands(message)
         return
 
-    # in a server: only respond when mentioned
-    if not is_dm and not is_mentioned:
+    # in a server: respond when mentioned OR in an active listening channel
+    if not is_dm and not is_mentioned and not is_active_ch:
         return
 
     # strip the mention if present and get clean content
@@ -136,6 +140,25 @@ async def ask(ctx, *, question: str):
                     await ctx.send(chunk)
         except Exception as e:
             await ctx.reply(f"Error: {e}")
+
+
+@bot.command(name="listen")
+async def listen(ctx):
+    """Make Clawbot respond to ALL messages in this channel (no @mention needed)."""
+    if isinstance(ctx.channel, discord.DMChannel):
+        return await ctx.reply("Already active in DMs by default!")
+    active_channels.add(ctx.channel.id)
+    await ctx.reply(
+        f"Now listening to **#{ctx.channel.name}**! "
+        f"I'll respond to every message here. Use `!unlisten` to stop."
+    )
+
+
+@bot.command(name="unlisten")
+async def unlisten(ctx):
+    """Stop Clawbot from responding to every message in this channel."""
+    active_channels.discard(ctx.channel.id)
+    await ctx.reply(f"Stopped listening to **#{ctx.channel.name}**. Mention me to chat.")
 
 
 @bot.command(name="reset")

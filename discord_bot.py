@@ -40,6 +40,8 @@ YTDL_OPTIONS = {
     "quiet": True,
     "default_search": "ytsearch",
     "source_address": "0.0.0.0",
+    "extractor_args": {"youtube": {"player_client": ["web"]}},
+    "js_runtimes": [f"node:{r'C:\Program Files\nodejs\node.exe'}"],
 }
 
 FFMPEG_OPTIONS = {
@@ -88,15 +90,25 @@ async def on_ready():
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
-    is_dm       = isinstance(message.channel, discord.DMChannel)
+
+    is_dm        = isinstance(message.channel, discord.DMChannel)
     is_mentioned = bot.user in message.mentions
-    if not is_dm and not is_mentioned:
+    is_command   = message.content.startswith(bot.command_prefix)
+
+    # always process commands first (works in both DMs and servers)
+    if is_command:
         await bot.process_commands(message)
         return
+
+    # in a server: only respond when mentioned
+    if not is_dm and not is_mentioned:
+        return
+
+    # strip the mention if present and get clean content
     content = message.content.replace(f"<@{bot.user.id}>", "").strip()
     if not content:
-        await bot.process_commands(message)
         return
+
     async with message.channel.typing():
         try:
             reply = get_ai_reply(str(message.author.id), content)
@@ -107,7 +119,6 @@ async def on_message(message: discord.Message):
                     await message.channel.send(chunk)
         except Exception as e:
             await message.reply(f"Sorry, something went wrong: {e}")
-    await bot.process_commands(message)
 
 
 # ── Chat commands ───────────────────────────────────────────────────────────────
@@ -168,6 +179,8 @@ async def imagine(ctx, *, prompt: str):
 @bot.command(name="play")
 async def play(ctx, *, query: str):
     """Play a song: !play <song name or YouTube URL>"""
+    if isinstance(ctx.channel, discord.DMChannel):
+        return await ctx.reply("Music only works in a server voice channel, not in DMs.")
     if not ctx.author.voice:
         return await ctx.reply("You need to be in a voice channel first!")
 

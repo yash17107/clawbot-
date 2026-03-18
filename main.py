@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List
 import agentops
@@ -66,6 +65,3 @@ async def chat(request: ChatRequest):
 @app.get("/health")
 async def health():
     return {"status": "ok", "agent": "clawbot"}
-
-
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
